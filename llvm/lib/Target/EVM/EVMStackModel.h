@@ -60,16 +60,13 @@ public:
   virtual ~StackSlot() = default;
 
   unsigned getSlotKind() const { return KindID; }
+
+  // 'isRematerializable()' returns true, if a slot always has a known value
+  // at compile time and therefore can safely be removed from the stack at any
+  // time and then regenerated later.
   virtual bool isRematerializable() const = 0;
   virtual std::string toString() const = 0;
 };
-
-/// The following structs describe different kinds of stack slots.
-/// Each stack slot is equality- and less-than-comparable and
-/// specifies an attribute 'isRematerializable' that is true,
-/// if a slot of this kind always has a known value at compile time and
-/// therefore can safely be removed from the stack at any time and then
-/// regenerated later.
 
 /// A slot containing a literal value.
 class LiteralSlot final : public StackSlot {
@@ -236,13 +233,16 @@ class EVMStackModel {
   DenseMap<const MachineBasicBlock *, SmallVector<Operation>> OperationsMap;
 
   // Storage for stack slots.
-  mutable DenseMap<APInt, LiteralSlot> LiteralStorage;
-  mutable DenseMap<Register, VariableSlot> VariableStorage;
-  mutable DenseMap<std::pair<MCSymbol *, const MachineInstr *>, SymbolSlot>
+  mutable DenseMap<APInt, std::unique_ptr<LiteralSlot>> LiteralStorage;
+  mutable DenseMap<Register, std::unique_ptr<VariableSlot>> VariableStorage;
+  mutable DenseMap<std::pair<MCSymbol *, const MachineInstr *>,
+                   std::unique_ptr<SymbolSlot>>
       SymbolStorage;
-  mutable DenseMap<const MachineInstr *, FunctionCallReturnLabelSlot>
+  mutable DenseMap<const MachineInstr *,
+                   std::unique_ptr<FunctionCallReturnLabelSlot>>
       FunctionCallReturnLabelStorage;
-  mutable DenseMap<std::pair<const MachineInstr *, size_t>, TemporarySlot>
+  mutable DenseMap<std::pair<const MachineInstr *, size_t>,
+                   std::unique_ptr<TemporarySlot>>
       TemporaryStorage;
 
   // There should be a single FunctionReturnLabelSlot for the MF.
@@ -262,23 +262,27 @@ public:
   // Get or create a requested stack slot.
   StackSlot *getStackSlot(const MachineOperand &MO) const;
   LiteralSlot *getLiteralSlot(const APInt &V) const {
-    auto [It, Inserted] = LiteralStorage.try_emplace(V, V);
-    return &It->second;
+    if (LiteralStorage.count(V) == 0)
+      LiteralStorage[V] = std::make_unique<LiteralSlot>(V);
+    return LiteralStorage[V].get();
   }
   VariableSlot *getVariableSlot(const Register &R) const {
-    auto [It, Inserted] = VariableStorage.try_emplace(R, R);
-    return &It->second;
+    if (VariableStorage.count(R) == 0)
+      VariableStorage[R] = std::make_unique<VariableSlot>(R);
+    return VariableStorage[R].get();
   }
   SymbolSlot *getSymbolSlot(MCSymbol *S, const MachineInstr *MI) const {
     auto Key = std::make_pair(S, MI);
-    auto [It, Inserted] = SymbolStorage.try_emplace(Key, S, MI);
-    return &It->second;
+    if (SymbolStorage.count(Key) == 0)
+      SymbolStorage[Key] = std::make_unique<SymbolSlot>(S, MI);
+    return SymbolStorage[Key].get();
   }
   FunctionCallReturnLabelSlot *
   getFunctionCallReturnLabelSlot(const MachineInstr *Call) const {
-    auto [It, Inserted] =
-        FunctionCallReturnLabelStorage.try_emplace(Call, Call);
-    return &It->second;
+    if (FunctionCallReturnLabelStorage.count(Call) == 0)
+      FunctionCallReturnLabelStorage[Call] =
+          std::make_unique<FunctionCallReturnLabelSlot>(Call);
+    return FunctionCallReturnLabelStorage[Call].get();
   }
   FunctionReturnLabelSlot *
   getFunctionReturnLabelSlot(const MachineFunction *MF) const {
@@ -290,13 +294,14 @@ public:
   }
   TemporarySlot *getTemporarySlot(const MachineInstr *MI, size_t Idx) const {
     auto Key = std::make_pair(MI, Idx);
-    auto [It, Inserted] = TemporaryStorage.try_emplace(Key, MI, Idx);
-    return &It->second;
+    if (TemporaryStorage.count(Key) == 0)
+      TemporaryStorage[Key] = std::make_unique<TemporarySlot>(MI, Idx);
+    return TemporaryStorage[Key].get();
   }
   // Junk is always the same slot.
   static JunkSlot *getJunkSlot() {
-    static JunkSlot Junk;
-    return &Junk;
+    static JunkSlot TheJunkSlot;
+    return &TheJunkSlot;
   }
 
 private:

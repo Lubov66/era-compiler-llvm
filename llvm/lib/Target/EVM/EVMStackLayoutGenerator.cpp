@@ -77,7 +77,7 @@ findStackTooDeep(Stack const &Source, Stack const &Target) {
           Errors.emplace_back(EVMStackLayoutGenerator::StackTooDeep{
               I - 16, getVariableChoices(take_back(CurrentStack, I + 1))});
       },
-      [&](StackSlot const *Slot) {
+      [&](const StackSlot *Slot) {
         if (Slot->isRematerializable())
           return;
 
