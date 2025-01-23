@@ -527,7 +527,7 @@ void createStackLayout(Stack &CurrentStack, Stack const &TargetStack,
 
   assert(CurrentStack.size() == TargetStack.size());
   for (unsigned I = 0; I < CurrentStack.size(); ++I) {
-    auto *Current = CurrentStack[I];
+    StackSlot *&Current = CurrentStack[I];
     auto *Target = TargetStack[I];
     if (isa<JunkSlot>(Target))
       Current = EVMStackModel::getJunkSlot();
