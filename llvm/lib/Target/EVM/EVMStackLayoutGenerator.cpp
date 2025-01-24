@@ -461,7 +461,7 @@ void EVMStackLayoutGenerator::runPropagation() {
       Stack NewSuccEntryLayout = ExitLayout;
       // Whatever the block being jumped to does not actually require,
       // can be marked as junk.
-      for (StackSlot *Slot : NewSuccEntryLayout)
+      for (StackSlot *&Slot : NewSuccEntryLayout)
         if (!is_contained(SuccEntryLayout, Slot))
           Slot = EVMStackModel::getJunkSlot();
 

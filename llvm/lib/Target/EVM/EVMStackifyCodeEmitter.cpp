@@ -275,7 +275,7 @@ void EVMStackifyCodeEmitter::visitAssign(const Assignment &Assignment) {
   assert(Emitter.stackHeight() == CurrentStack.size());
 
   // Invalidate occurrences of the assigned variables.
-  for (auto *CurrentSlot : CurrentStack)
+  for (auto *&CurrentSlot : CurrentStack)
     if (const auto *VarSlot = dyn_cast<VariableSlot>(CurrentSlot))
       if (is_contained(Assignment.Variables, VarSlot))
         CurrentSlot = EVMStackModel::getJunkSlot();
@@ -336,11 +336,10 @@ void EVMStackifyCodeEmitter::createStackLayout(const Stack &TargetStack) {
             Emitter.emitDUP(static_cast<unsigned>(Depth + 1));
             return;
           }
-          if (Slot->isRematerializable()) {
+          if (!Slot->isRematerializable()) {
             std::string Msg =
-                (isa<VariableSlot>(Slot) ? "variable "
-                                         : "slot " + Slot->toString()) +
-                " is " + std::to_string(Depth - 15) +
+                (isa<VariableSlot>(Slot) ? "variable " : "slot ") +
+                Slot->toString() + " is " + std::to_string(Depth - 15) +
                 " too deep in the stack " + stackToString(CurrentStack);
 
             report_fatal_error(MF.getName() + ": " + Msg);
