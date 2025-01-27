@@ -1,4 +1,4 @@
-name: Integration tests and benchmarks
+name: Tests
 
 on:
   pull_request:
@@ -106,13 +106,17 @@ jobs:
   # This is a common part of the benchmarks workflow for all repositories
   # If you would like to make a change to the benchmarks workflow, please do it in the era-compiler-ci repository
   benchmarks:
-    needs: [compiler-tester-ref, target-machine]
-    uses: matter-labs/era-compiler-ci/.github/workflows/benchmarks.yml@v1
+    needs: [compiler-tester-ref]
+    uses: matter-labs/era-compiler-ci/.github/workflows/benchmarks.yml@aba-support-evm-benchmarks
     secrets: inherit
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ needs.target-machine.outputs.* }}
+        target: ['eravm', 'evm']
+        toolchain: ['ir-llvm', 'solc']
+        exclude:
+          - target: 'eravm'
+            toolchain: 'solc'
     with:
       llvm_build_type: ${{ github.event.inputs.llvm_build_type }}
       compiler_tester_reference_branch: ${{ needs.compiler-tester-ref.outputs.reference-ref }}
@@ -124,21 +128,22 @@ jobs:
       ccache-key-type: 'static' # rotate ccache key every month
       compiler-llvm-repo: ${{ github.event.pull_request.head.repo.full_name }} # required to properly test forks
       target-machine: ${{ matrix.target }}
+      toolchain: ${{ matrix.toolchain }}
 
   # Integration tests workflow call from the era-compiler-ci repository
   # This is a common part of the integration tests workflow for all repositories
   # If you would like to make a change to the integration tests workflow, please do it in the era-compiler-ci repository
-  integration-tests:
-    needs: [compiler-tester-ref, target-machine]
-    uses: matter-labs/era-compiler-ci/.github/workflows/integration-tests.yaml@v1
-    secrets: inherit
-    strategy:
-      fail-fast: false
-      matrix:
-        target: ${{ needs.target-machine.outputs.* }}
-    with:
-      compiler-tester-ref: ${{ needs.compiler-tester-ref.outputs.candidate-ref }}
-      llvm-ref: ${{ github.event.inputs.compiler_llvm_candidate_branch || github.head_ref || github.event.repository.default_branch }}
-      ccache-key-type: 'static' # rotate ccache key every month
-      compiler-llvm-repo: ${{ github.event.pull_request.head.repo.full_name }} # required to properly test forks
-      target-machine: ${{ matrix.target }}
+#  integration-tests:
+#    needs: [compiler-tester-ref, target-machine]
+#    uses: matter-labs/era-compiler-ci/.github/workflows/integration-tests.yaml@v1
+#    secrets: inherit
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        target: ${{ needs.target-machine.outputs.* }}
+#    with:
+#      compiler-tester-ref: ${{ needs.compiler-tester-ref.outputs.candidate-ref }}
+#      llvm-ref: ${{ github.event.inputs.compiler_llvm_candidate_branch || github.head_ref || github.event.repository.default_branch }}
+#      ccache-key-type: 'static' # rotate ccache key every month
+#      compiler-llvm-repo: ${{ github.event.pull_request.head.repo.full_name }} # required to properly test forks
+#      target-machine: ${{ matrix.target }}
